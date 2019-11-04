@@ -1,0 +1,183 @@
+---
+title: "DCM dynamics in the Black Sea"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    #source_code : embed
+runtime: shiny
+---
+
+```{r clean, include=F}
+rm(list=ls())
+```
+  
+```{r setup, include=FALSE}
+library(rsconnect)
+library(flexdashboard)
+library(ncdf4)
+library(ggplot2)
+library(plyr)
+library(reshape2)
+library(chron)
+library(viridis)
+library(TTR)
+library(minpack.lm)
+library(nls2)
+library(nlstools)
+library(data.table)
+library(gsw)
+library(gridExtra)
+library(car)
+library(oce)
+library(ggmap)
+library(ggalt)
+library(RColorBrewer)
+library(lubridate)
+library(shiny)
+library(leaflet)
+```
+
+```{r wd(), echo = FALSE, include = FALSE}
+#load data set
+load("data.RData")
+```
+
+Individual profiles
+==========================
+  
+Inputs {.sidebar}
+-----------------
+  
+```{r Choices}
+#checkboxInput("g","G", value = F)  
+#checkboxInput("s", "S", value = F) # we do not show profiles without a G, GE or GS fit anymore
+#checkboxInput("e", "E", value = F)
+#checkboxInput("ge", "GE", value = F)
+#checkboxInput("gs", "GS", value = F)
+
+# Only shows fit or not fit (to reduce the choices, i.e. the length of the code ...) ==> just precise somewhere that the best fit is a G, a GE or a GS
+checkboxInput("fit", "FIT CHLA", value = F)
+checkboxInput("fit_bbp", "FIT BBP", value = F)
+```
+
+```{r}
+numericInput(inputId = "profile_number", label = "Profile N°",
+             value = 1, min = 1, max = length(unique(profiles$id)),
+             step = 1)
+```
+
+```{r}
+checkboxInput("bbp", "BBP700", value = F)
+checkboxInput("par", "PAR", value = F)
+checkboxInput("doxy", "DOXY", value = F)
+```
+
+
+```{r}
+uiOutput("slider")
+output$slider <- renderUI({
+  sliderInput("range", "Depth range", min=0, max=max(profiles[profiles$id == input$profile_number,]$depth)-0.5, value=c(0,90))
+})
+
+```
+
+Last update (Y/m/d): 
+  
+```{r}
+Sys.time()
+```
+
+CONTACTS : florian.ricour@hotmail.fr
+
+Column {data-width=650} {.tabset}
+-----------------------------------------------------------------------
+
+### Profile
+  
+```{r}
+renderPlot({
+  tmp <- profiles[profiles$id == input$profile_number,]
+  tmp_doxy <- doxy[doxy$id == input$profile_number,]
+  juld <- tmp$juld[1]
+  tmp_par <- PAR[PAR$juld == juld,]
+  tmp_fit <- fit[fit$id == input$profile_number,]
+  tmp_fit_bbp <- fit_BBP[fit_BBP$id == input$profile_number,]
+  
+  # FIT CHLA
+  if(input$fit == T){
+    if(tmp_fit$shape == "G"){
+      fit_curve <- as.data.frame(fgauss(tmp$depth, tmp_fit$Fmax, tmp_fit$Zmax, tmp_fit$dz))
+    }else if(tmp_fit$shape == "GE"){
+      fit_curve <- as.data.frame(fgauss_expo(tmp$depth, tmp_fit$Fsurf, tmp_fit$Zdemi, tmp_fit$Fmax, tmp_fit$Zmax, tmp_fit$dz))
+    }else{
+      fit_curve <- as.data.frame(fgauss_sigmoid(tmp$depth, tmp_fit$Fsurf, tmp_fit$Zdemi, tmp_fit$s, tmp_fit$Fmax, tmp_fit$Zmax, tmp_fit$dz))
+    } 
+  
+  colnames(fit_curve) <- "fit"
+  fit_curve$fit <- normalize(fit_curve$fit) 
+  fit_curve$depth <- tmp$depth
+  }
+  
+  # FIT BBP
+  if(input$fit_bbp == T){
+    if(tmp_fit_bbp$shape == "G"){
+      fit_bbp_curve <- as.data.frame(fgauss(tmp$depth, tmp_fit_bbp$Fmax, tmp_fit_bbp$Zmax, tmp_fit_bbp$dz))
+    }else if(tmp_fit_bbp$shape == "GE"){
+      fit_bbp_curve <- as.data.frame(fgauss_expo(tmp$depth, tmp_fit_bbp$Fsurf, tmp_fit_bbp$Zdemi, tmp_fit_bbp$Fmax, tmp_fit_bbp$Zmax, tmp_fit_bbp$dz))
+    }else{
+      fit_bbp_curve <- as.data.frame(fgauss_sigmoid(tmp$depth, tmp_fit_bbp$Fsurf, tmp_fit_bbp$Zdemi, tmp_fit_bbp$s, tmp_fit_bbp$Fmax, tmp_fit_bbp$Zmax, tmp_fit_bbp$dz))
+    } 
+  
+  colnames(fit_bbp_curve) <- "fit"
+  fit_bbp_curve$fit <- normalize(fit_bbp_curve$fit) # shift between normalized bbp data (over the whole profile) and the fitted curve (because normalization only in the oxygenated layer)
+  fit_bbp_curve$depth <- tmp$depth
+  }
+  
+  # Plot data
+  ggplot(tmp, aes(x = fluo_norm, y = depth)) + geom_point() + 
+    theme(axis.text=element_text(size = 14), axis.title=element_text(size=14)) + 
+    scale_y_reverse(limits = c(input$range[2],input$range[1])) + xlab("Normalized data") + ylab("Depth (m)") +
+  {if(input$bbp)geom_point(data = tmp, aes(x = bbp_norm, y = depth), colour = "red")} +
+  {if(input$doxy)geom_point(data = tmp_doxy, aes(x = doxy_norm, y = depth), colour = "purple")} +
+  {if(input$par)geom_point(data = tmp_par, aes(x = par_norm, y = depth), colour = "green4")} +
+  {if(input$fit)geom_path(data = fit_curve, aes(x = fit, y = depth), colour = "black")} +
+  {if(input$fit_bbp)geom_path(data = fit_bbp_curve, aes(x = fit, y = depth), colour = "red")}
+  
+})
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+```{r}
+  
+# MAP
+
+renderLeaflet(
+  leaflet(tmp <- profiles[profiles$id == input$profile_number,]) %>%
+  addTiles() %>%
+  setView(lng=34, lat=43, zoom = 5) %>%
+  addCircleMarkers(lng=tmp$lon[1], lat=tmp$lat[1], radius = 10, color = "red") %>%
+  addCircles(lng = lat_lon$lon, lat = lat_lon$lat, radius = 5, color = "black", popup = paste0("Profile Number = ", lat_lon$id)) 
+)
+```
+
+### Information on the profile
+
+```{r}
+renderPrint({
+  
+  cat("CHLA FIT SHAPE:", as.character(fit$shape[input$profile_number]),"\nDCM:", round(fit$Zmax[input$profile_number], digits = 1), "m","\nCHLA AT DCM:",round(fit$chla_dcm[input$profile_number], digits = 3), "kg/m3 (not normalized)","\nMLD:",round(fit$MLD[input$profile_number], digits = 1),"m","\nTIME:",fit$day[input$profile_number],"-",fit$month[input$profile_number],"-",fit$year[input$profile_number],"(dd-mm-yyyy)","\nDAY/NIGHT:",as.character(fit$day_night[input$profile_number]),"\nLAT/LON:",round(fit$lat[input$profile_number], digits=2),"(N) /",round(fit$lon[input$profile_number],digits=2),"(E)","\nFLOAT (WMO):",fit$platform[input$profile_number],"\n\n=============\n\n" )
+  
+  if(fit_BBP$shape[input$profile_number] == 'O'){
+    print("No BBP fit is available for this profile")
+  }
+  if(!fit$juld[input$profile_number] %in% unique(PAR$juld)){
+    print("No PAR data are available for this profile")
+  } 
+  
+  cat("\n=============\n\n","NB: A shift between 'BBP700' and 'FIT BBP' may occur.\n'BBP700' are normalized over the whole profile while 'FIT BBP' is normalized in the oxygenated layer only (to avoid the second BBP peak at the anoxic interface).")
+  
+})
+```
