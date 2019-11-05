@@ -251,7 +251,7 @@ argodf <- clean_remove(argodf, unique(argodf$juld))
 
 # Get profiles id that do not answer to some criteria
 crit1 <- argodf[(argodf$min_depth > 5),]# all stuck profiles except one (add QC on pressure to get rid of them directly)
-crit2 <- argodf[(argodf$bottomdepth < 50),] # 50m works as well, justification: le dcm est en-dessous de 50m 
+crit2 <- argodf[(argodf$bottomdepth < 40),] # 50m works as well, justification: le dcm est en-dessous de 50m 
 
 # remove a profile (.6 24895.96 0.8784 0.00916 2.7240 2 2 2 2018 59 34.85083 44.71711 A night 6900807 652) that shows a DCM at > 150m deep (cannot correct with FDOM method) -> remove it
 crit3 <- argodf[argodf$platform == 6900807 & argodf$DOY == 59 & argodf$year == 2018,]
@@ -368,6 +368,9 @@ profiles <- clean_remove(profiles, unique(profiles$juld))
 density_profiles <- clean_remove(density_profiles, unique(profiles$juld))
 argodf <- clean_remove(argodf, unique(profiles$juld))
 MLDdf <- clean_remove(MLDdf, unique(profiles$juld))
+
+# add a column to the 'profiles' dataframe with OLD_CHLA (will save the uncorrected chla, can be useful for some plots)
+profiles$old_fluo <- profiles$fluo
 
 ## In reality, it could be a script based not on the ID but on the JULD (avoid all the rownames init and so forth.. To meditate)
 
