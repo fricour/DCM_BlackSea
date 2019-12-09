@@ -5,13 +5,15 @@ rm(list=ls())
 #save.image(file = 'data_extraction_cleaning.Rdata')
 # load this instead of executing the first part (no more additional changes now)
 library(plyr)
+library(minpack.lm)
+library(nls2)
+library(nlstools)
 load(file = 'data_extraction_cleaning.Rdata')
 
 source("/home/flo/Documents/DCM_BlackSea/data_fitV2.R") 
 #source("/home/flo/Documents/DCM_BlackSea/data_densityV2.R")
 
-#BUGGY SCRIPT SO I COMMENT IT FOR NOW
-#source("/home/flo/Documents/DCM_BlackSea/data_fit_BBP.R")
+source("/home/flo/Documents/DCM_BlackSea/data_fit_BBP.R")
 
 # ADD SOME DATA FOR THE .Rmd file
 # get unique positions of CHLA profiles

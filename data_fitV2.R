@@ -375,6 +375,9 @@ fitggg2 <- fitggg2[which(fitggg2$chla_dcm >= 1.1 * fitggg2$chla_surf),]
 # SENSITIVITY STUDY #
 #####################
 
+#this dataframe will be used for the creation of the NetCDF files
+save_profiles <- profiles
+
 # Let's keep only profiles fitted as "G", "GE" or "GS"
 profiles <- clean_remove(profiles, unique(fit[fit$shape %in% c("G", "GE", "GS"),]$juld))
 
