@@ -77,29 +77,49 @@ ExtractVar <- function(Var,FloatInfo){
 mmed <- function(x,n=5){runmed(x,n)}
 
 #3 Determination of day/night profiles
-DayOrNight <- function(juld, lat, lon){
-  origin <- ymd_hms("1950-01-01 00:00:00") # julian day origin for the Argo program
-  juld <- origin + juld * 3600 * 24 #conversion of juld in working day and hour
-  #Below we split the julian day into day - month - year - hour - minute
-  day <- format(as.POSIXct(strftime(juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%d")
-  month <- format(as.POSIXct(strftime(juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%m")
-  year <- format(as.POSIXct(strftime(juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%Y")
-  hour <- format(as.POSIXct(strftime(juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%H")
-  minute <- format(as.POSIXct(strftime(juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%M") 
-  date <- as.Date(as.POSIXct(juld, 'Europe/Sofia')) # convert juld into a a "Date" object
-  data <- data.frame(date = date, lat = lat, lon = lon) # create a dataframe for the function getSunlightTimes
-  sun_cycle <- getSunlightTimes(data = data, keep = c("sunset", "sunrise"), tz = "Europe/Sofia")# get the sunset and sunrise hours
+DayOrNight <- function(dataframe){
+
+  d <- ldply(as.list(unique(dataframe$juld)), function(juld){
+    
+    print(juld)
+    
+    origin <- ymd_hms("1950-01-01 00:00:00") # julian day origin for the Argo program
+    
+    # get temporary profile and metadata
+    tmp <- dataframe[dataframe$juld == juld,]
+    lat <- tmp$lat[1]
+    lon <- tmp$lon[1]
+    n <- length(tmp$depth) #number of points in the profile
+    
+    # determine day or night
+    tmp_juld <- origin + juld * 3600 * 24 #conversion of juld in working day and hour
+    date <- format(tmp_juld, tz="Europe/Sofia", usetz=TRUE)
+    date2 <- as.Date(as.POSIXct(tmp_juld, 'Europe/Sofia')) # convert juld into a a "Date" object
+    
+    hour <- format(as.POSIXct(strftime(tmp_juld,"%Y-%m-%d %H:%M:%S",tz="Europe/Sofia", usetz = T)),format = "%H")
+    data <- data.frame(date = date2, lat = lat, lon = lon) # create a dataframe for the function getSunlightTimes
+    sun_cycle <- getSunlightTimes(data = data, keep = c("sunset", "sunrise"), tz = "Europe/Sofia")# get the sunset and sunrise hours
+    
+    # local sunrise/sunset hours
+    hour_sunrise <- as.numeric(format(sun_cycle$sunrise, "%H"))
+    hour_sunset <- as.numeric(format(sun_cycle$sunset, "%H"))
+    
+    if(is.na(hour_sunrise)){ # needed for profiles without latitude/longitude
+      sun <- "NA"
+    }else if(as.numeric(hour) < hour_sunset & as.numeric(hour) > hour_sunrise){
+      sun <- "day"
+    }else{
+      sun <- "night"
+    }
+    
+    date <- rep(date, times = n)
+    sun <- rep(sun, times = n)
+    
+    data.frame(date = date, day_night = sun)
+    
+  })
   
-  # local sunrise/sunset hours
-  hour_sunrise <- as.numeric(format(sun_cycle$sunrise, "%H"))
-  hour_sunset <- as.numeric(format(sun_cycle$sunset, "%H"))
-  
-  if(as.numeric(hour) < hour_sunset & as.numeric(hour) > hour_sunrise){
-    sun <- "day"
-  }else{
-    sun <- "night"
-  }
-  return(sun)
+  return(d)
 }
 
 #4 Function to reinitialize dataframes after cleaning (row numbers, new IDs)
@@ -131,6 +151,8 @@ profiles <- ldply(as.list(filename),function(file){
   
   #Opening the file in a open-only mode
   ncfile   <<- nc_open(file, write = FALSE, verbose = F, suppress_dimvals = FALSE)
+  
+  print(file)
   
   #Dimensions
   N_PROF   <- ncol(ncvar_get(ncfile,"PRES"))
@@ -167,7 +189,7 @@ profiles <- ldply(as.list(filename),function(file){
   
   id <- ncvar_get(ncfile, "PLATFORM_NUMBER") 
   
-  day_night <- DayOrNight(chladf$juld[1], chladf$lat[1], chladf$lon[1])
+  day_night <- DayOrNight(chladf)
   
   data.frame(depth    = chladf$depth,
              juld     = chladf$juld,
@@ -183,7 +205,8 @@ profiles <- ldply(as.list(filename),function(file){
              lon      = chladf$lon,
              lat      = chladf$lat,
              dir      = chladf$dir,
-             day_night = day_night,
+             day_night = day_night$day_night,
+             date_long = day_night$date,
              platform = as.numeric(unique(id))
   )
 })
@@ -345,7 +368,7 @@ MLDdf <- ldply(as.list(1:length(unique(density_profiles$id))), function(i){
   if(is.na(MLD) == TRUE){
     sigmaMaxMLD <- NA
   }else{
-    sigmaMaxMLD <- mean(tmp$sigma[which(tmp$depth == MLD)], na.rm =T)
+    sigmaMaxMLD <- mean(tmp$sigma[which(tmp$depth == MLD)], na.rm =T) #check this, pq max mld? #####################################################################
   }
   
   show(i)
