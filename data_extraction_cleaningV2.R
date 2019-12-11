@@ -24,8 +24,6 @@ library(lubridate)
 library(lattice)
 library(suncalc)
 library(dplyr)
-library(plyr)
-library(ggplot2)
 
 #############
 # FUNCTIONS #
@@ -130,7 +128,7 @@ clean_remove <- function(dataframe, vector_filter){
   dataframe <- dataframe[order(dataframe$id),]
 }
 
-#5 Function to normalize data
+#5 Function to normalize data 
 normalize <- function(data){
   data <- (data - min(data, na.rm = T))/(max(data, na.rm = T) - min(data, na.rm = T))
 }
@@ -423,11 +421,11 @@ FDOM_OR_MINIMUM_OFFSET_CORRECTION <- ldply(as.list(1:length(unique(profiles$id))
 })
 
 ### ADD INFO about FDOM-correction for the floats equipped with CDOM ### ===> keep this when writing the article
-#fdom_info <- FDOM_OR_MINIMUM_OFFSET_CORRECTION[FDOM_OR_MINIMUM_OFFSET_CORRECTION$platform %in% c(6900807, 6901866),]
-#fdom_info <- transform(fdom_info,id=as.numeric(factor(juld)))
-# fdom_info <- ddply(fdom_info, ~juld, summarize,
-#                    C = mean(C),
-#                    slope = mean(slope_fdom))
+fdom_info <- FDOM_OR_MINIMUM_OFFSET_CORRECTION[FDOM_OR_MINIMUM_OFFSET_CORRECTION$platform %in% c(6900807, 6901866),]
+fdom_info <- transform(fdom_info,id=as.numeric(factor(juld)))
+fdom_info <- ddply(fdom_info, ~juld, summarize,
+                   C = mean(C),
+                   slope = mean(slope_fdom))
 # 
 # meanSlope <- mean(fdom_info$slope)
 # sdSlope <- sd(fdom_info$slope)

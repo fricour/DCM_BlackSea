@@ -333,19 +333,19 @@ rm(norm_tmp, norm_doxy, norm_PAR)
 ##########################################
 
 # Remove the GS pool from the fit dataframe
-fit_no_GS <- fit[!fit$shape %in% 'GS',]
+#fit_no_GS <- fit[!fit$shape %in% 'GS',]
 #ggplot(fit_no_GS, aes(x = month, fill = shape)) + geom_bar() + labs(title = 'FIT without GS')
 
 # Only keep GS, GE and G profiles and check which chla_dcm < 1.1*chla_surf
-fitggg <- fit[fit$shape %in% c('G','GE','GS'),]
-fitggg <- fitggg[which(fitggg$chla_dcm <= 1.1 * fitggg$chla_surf),]
+#fitggg <- fit[fit$shape %in% c('G','GE','GS'),]
+#fitggg <- fitggg[which(fitggg$chla_dcm <= 1.1 * fitggg$chla_surf),]
 #fit_no_GS <- fit_no_GS[-which(fit_no_GS$juld %in% unique(fitgeg$juld)),]
 # Quick histogram to explore 
 #ggplot(fitggg, aes(x = month, fill = shape)) + geom_bar() + labs(title = 'G_GE_GS_INF_110%')
 
 # Only keep GS, GE and G profiles and check which chla_dcm < 1.1*chla_surf
-fitggg2 <- fit[fit$shape %in% c('G','GE','GS'),]
-fitggg2 <- fitggg2[which(fitggg2$chla_dcm >= 1.1 * fitggg2$chla_surf),]
+#fitggg2 <- fit[fit$shape %in% c('G','GE','GS'),]
+#fitggg2 <- fitggg2[which(fitggg2$chla_dcm >= 1.1 * fitggg2$chla_surf),]
 #fit_no_GS <- fit_no_GS[-which(fit_no_GS$juld %in% unique(fitgeg$juld)),]
 # Quick histogram to explore 
 #ggplot(fitggg2, aes(x = month, fill = shape)) + geom_bar() + labs(title = 'G_GE_GS_SUP_110%')
@@ -394,10 +394,10 @@ MLDdf_info <- ddply(init_MLD, ~year~platform, summarize,
                     sigmaMaxMLD = sigmaMaxMLD[which.max(MLD)])
 
 #save.image(file="before_sensitivity.RData")
-#load(file="before_sensitivity.RData")
+load(file="before_sensitivity.RData")
 
 # sensitivity
-thresholds <- c(1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2)
+thresholds <- c(1,1.1,1.2,1.3,1/0.75,1.4,1.5,1.6,1.7,1.8,1.9,2)
 
 sens_ratio <- ldply(as.list(thresholds), function(i){
   
@@ -411,13 +411,14 @@ sens_ratio <- ldply(as.list(thresholds), function(i){
     sigmaMaxMLD <- MLDdf_info$sigmaMaxMLD[which(MLDdf_info$year == tmp$year & MLDdf_info$platform == tmp$platform)]
     sigmaDCM <- approx(tmp3$depth, tmp3$sigma, tmp2$Zmax)$y #interpolation
     ratio = sigmaDCM/sigmaMaxMLD
-    data.frame(ratio = ratio, juld = tmp$juld[1], month = tmp$month[1])
+    data.frame(ratio = ratio, juld = tmp$juld[1], month = tmp$month[1], shape = tmp2$shape)
   })
   
   mean_ratio <- mean(sigma_ratioTEST$ratio, na.rm =T)
   sd_ratio <- sd(sigma_ratioTEST$ratio, na.rm =T) 
   var_ratio <- var(sigma_ratioTEST$ratio, na.rm =T)
-  data.frame(threshold = i, mean = mean_ratio, std = sd_ratio, var = var_ratio, n = length(JULD))
+  data.frame(threshold = i, mean = mean_ratio, std = sd_ratio, var = var_ratio, n = length(JULD), nGS = length(which(sigma_ratioTEST$shape == "GS")),
+             nGE = length(which(sigma_ratioTEST$shape == "GE")), nG = length(which(sigma_ratioTEST$shape == "G")))
 })
 
 
@@ -432,7 +433,8 @@ sens_ratio <- ldply(as.list(thresholds), function(i){
 
 # Additional criteria for elimination of false DCMs
 # profiles <- clean_remove(profiles, fit[which(fit$chla_dcm > 1.1* fit$chla_surf & fit$Zmax > fit$MLD & fit$month %in% c(3:10)),]$juld) 
-profiles <- clean_remove(profiles, fit[which(fit$chla_dcm > 1.1 * fit$chla_surf),]$juld) # let's start with a low threshold (then go to 1.2 or 1.25)
+profiles <- clean_remove(profiles, fit[which(fit$chla_dcm > 1/0.75 * fit$chla_surf),]$juld) # let's start with a low threshold (then go to 1.2 or 1.25) 
+# 1/0.75 = 25%
 # if we keep the data where Zmax < MLD => check for the ratio at the end.. => if it's good, then we keep it, if it's not good then we have a reason to get rid of them
 
 fit <- clean_remove(fit, unique(profiles$juld))
@@ -441,6 +443,16 @@ MLDdf <- clean_remove(MLDdf, unique(fit$juld))
 doxy <- clean_remove(doxy, unique(fit$juld))
 PAR <- clean_remove(PAR, unique(fit$juld))
 
+# for a boxplot, add ratio chla_dcm/chla_surf
+ratio_chla_dcm_chla_surf <- ldply(as.list(1:length(fit$id)), function(i){
+  tmp <- fit[fit$id == i,]
+  ratio <- tmp$chla_dcm/tmp$chla_surf
+  data.frame(ratio = ratio)
+})
+
+fit$ratio_chla_dcm_chla_surf <- ratio_chla_dcm_chla_surf$ratio
+
+#ggplot(fit, aes(x = factor(month), y = ratio_chla_dcm_chla_surf)) + geom_boxplot() + scale_y_continuous(limits= c(0,15))
 
 sigma_ratio <- ldply(as.list(1:length(MLDdf$id)), function(i){
   tmp <- MLDdf[MLDdf$id == i,]
